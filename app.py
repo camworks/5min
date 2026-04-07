@@ -9,7 +9,7 @@ import time
 # 1. 페이지 설정 및 다크 테마 적용
 st.set_page_config(page_title="바이낸스 5분봉 단타 대시보드", layout="wide")
 
-# CSS: 블랙 배경 및 20pt 노란색 가격 스타일
+# CSS: 블랙 배경 및 20pt 노란색 가격 스타일 적용
 st.markdown("""
     <style>
     .main { background-color: #000000 !important; }
@@ -35,10 +35,10 @@ with st.sidebar:
     st.divider()
     실행_스위치 = st.checkbox("프로그램 시작", value=False)
 
-# 3. 데이터 및 지표 계산 로직 (지역 제한 우회 엔드포인트 적용)
+# 3. 데이터 및 지표 계산 로직 (451 오류 해결을 위한 엔드포인트 수정)
 def 데이터_가져오기(symbol):
     try:
-        # 지역 제한(451 오류) 해결을 위해 다중 엔드포인트 시도 설정
+        # 지역 제한 오류 해결을 위한 선물 전용 API 주소 설정
         exchange = ccxt.binance({
             'options': {'defaultType': 'future'},
             'urls': {
@@ -49,12 +49,12 @@ def 데이터_가져오기(symbol):
             }
         })
         
-        # 데이터 로드 (2400 이평선을 위해 3000개 로드)
+        # 2400 이평선을 위해 3000개의 충분한 데이터 로드
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe='5m', limit=3000)
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
-        # EMA 계산 (120 흰색 / 240 적색 / 600 보라색 / 2400 노란색)
+        # EMA 계산 (흰색/적색/보라색/노란색 + 굵기 차이 고려)
         df['EMA120'] = ta.ema(df['close'], length=120)
         df['EMA240'] = ta.ema(df['close'], length=240)
         df['EMA600'] = ta.ema(df['close'], length=600)
@@ -67,10 +67,10 @@ def 데이터_가져오기(symbol):
         return df
     except Exception as e:
         st.error(f"데이터 연결 오류: {e}")
-        st.warning("팁: 접속 제한 지역(미국 등)의 서버일 경우 발생할 수 있습니다. 로컬 환경 실행을 권장합니다.")
+        st.warning("팁: Streamlit Cloud 서버 지역 제한 문제일 수 있습니다. 문제가 지속되면 로컬 실행을 권장합니다.")
         return None
 
-# 4. 메인 대시보드 렌더링
+# 4. 메인 화면 렌더링
 메인_영역 = st.empty()
 
 if not 실행_스위치:
@@ -92,6 +92,7 @@ while 실행_스위치:
             차트.add_trace(go.Candlestick(x=df['timestamp'], open=df['open'], high=df['high'], 
                                         low=df['low'], close=df['close'], name="5분봉"))
             
+            # EMA 선 (흰120, 적240, 보600, 노2400)
             차트.add_trace(go.Scatter(x=df['timestamp'], y=df['EMA120'], line=dict(color='white', width=1), name='이평 120'))
             차트.add_trace(go.Scatter(x=df['timestamp'], y=df['EMA240'], line=dict(color='red', width=2), name='이평 240'))
             차트.add_trace(go.Scatter(x=df['timestamp'], y=df['EMA600'], line=dict(color='purple', width=3), name='이평 600'))
@@ -101,7 +102,7 @@ while 실행_스위치:
                               paper_bgcolor='black', plot_bgcolor='black', margin=dict(t=10, b=10))
             st.plotly_chart(차트, use_container_width=True)
             
-            # RSI 영역
+            # RSI 지표 영역
             RSI_차트 = go.Figure()
             RSI_차트.add_trace(go.Scatter(x=df['timestamp'], y=df['RSI'], line=dict(color='skyblue', width=1.5), name='RSI'))
             RSI_차트.add_trace(go.Scatter(x=df['timestamp'], y=df['RSI_S'], line=dict(color='yellow', width=1.5), name='RSI 스무스'))
@@ -111,7 +112,7 @@ while 실행_스위치:
                                   plot_bgcolor='black', margin=dict(t=10, b=10))
             st.plotly_chart(RSI_차트, use_container_width=True)
             
-            # 최하단 추세 표시 (글자색 로직)
+            # 최하단 추세 표시 (글자색 로직 적용)
             st.divider()
             좌, 중, 우 = st.columns(3)
             
